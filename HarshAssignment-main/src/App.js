@@ -3,19 +3,19 @@ import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import { polygon, area, length } from '@turf/turf';
 
-
 mapboxgl.accessToken = 'pk.eyJ1Ijoia3VuYWxwYXRpbDIwMDIiLCJhIjoiY2xqNGtwcHlmMDNjZDNybzN5a25pd3oybyJ9.CmQxfXpAhwZJ_vSQAVK1Cw';
-
 
 const MapComponent = () => {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const draw = useRef(null);
+  const savedShape = useRef(null);
   const [geoJSON, setGeoJSON] = useState(null);
   const [areaValue, setAreaValue] = useState(null);
   const [perimeterValue, setPerimeterValue] = useState(null);
   const [drawingMode, setDrawingMode] = useState(false);
   const [searchValue, setSearchValue] = useState('');
+  const [searchTimeout, setSearchTimeout] = useState(null);
 
   useEffect(() => {
     map.current = new mapboxgl.Map({
@@ -28,10 +28,18 @@ const MapComponent = () => {
     draw.current = new MapboxDraw();
     map.current.addControl(draw.current);
 
+    savedShape.current = JSON.parse(localStorage.getItem('savedShape'));
+
     return () => map.current.remove();
   }, []);
 
-  const handleDrawCreate = (event) => {//setgeojson state is filed with geojson and then use truf library to calculate area & perimeter
+  useEffect(() => {
+    if (savedShape.current) {
+      setGeoJSON(savedShape.current);
+    }
+  }, []);
+
+  const handleDrawCreate = (event) => {
     const geojson = event.features[0].geometry;
     setGeoJSON(geojson);
 
@@ -44,7 +52,7 @@ const MapComponent = () => {
   };
 
   const toggleDrawingMode = () => {
-    if (!drawingMode) {//add event listner on drawingMode
+    if (!drawingMode) {
       map.current.on('draw.create', handleDrawCreate);
       draw.current.changeMode('draw_polygon');
     } else {
@@ -58,65 +66,100 @@ const MapComponent = () => {
   };
 
   const handleSearchInputChange = (event) => {
-    setSearchValue(event.target.value);
+    const value = event.target.value;
+    setSearchValue(value);
+
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+
+    const timeout = setTimeout(() => {
+      searchLocations(value);
+    }, 500);
+
+    setSearchTimeout(timeout);
+  };
+
+  const searchLocations = async (query) => {
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}`
+      );
+      const data = await response.json();
+      if (data.features.length > 0) {
+        const center = data.features[0].geometry.coordinates;
+        map.current.flyTo({ center });
+        addMarker(center);
+      }
+    } catch (error) {
+      console.error('Error searching for locations:', error);
+    }
+  };
+
+  const addMarker = (coordinates) => {
+    if (map.current.getLayer('marker')) {
+      map.current.removeLayer('marker');
+      map.current.removeSource('marker');
+    }
+
+    map.current.addSource('marker', {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: coordinates,
+        },
+      },
+    });
+
+    map.current.addLayer({
+      id: 'marker',
+      type: 'circle',
+      source: 'marker',
+      paint: {
+        'circle-radius': 6,
+        'circle-color': '#FF0000',
+      },
+    });
   };
 
   const handleSaveShape = () => {
-    if (geoJSON) {//save the current shape or the polygon
+    if (geoJSON) {
       localStorage.setItem('savedShape', JSON.stringify(geoJSON));
       alert('Shape saved!');
     }
   };
 
-  useEffect(() => {
-    const searchLocations = async () => {
-      try {//search location and flyto the given location
-        const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-            searchValue
-          )}.json?access_token=${mapboxgl.accessToken}`
-        );
-        const data = await response.json();
-        if (data.features.length > 0) {
-          const center = data.features[0].geometry.coordinates;
-          map.current.flyTo({ center });
-        }
-      } catch (error) {
-        console.error('Error searching for locations:', error);
-      }
-    };
-
-    if (searchValue) {
-      searchLocations();
-    }
-  }, [searchValue]);
-
-  return ( //render the map 
-    <div className="flex w-full h-full" >
+  return (
+    <div className="flex w-full h-full">
       <div className="flex-1" ref={mapContainer} style={{ height: '100vh' }} />
-      
 
       <div className="flex flex-col p-14 bg-black border">
-        <input //take input from user to search location
+        <input
           type="text"
           className="w-full mb-5 h-10 px-8 py-5 rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Search"
           value={searchValue}
           onChange={handleSearchInputChange}
         />
-        <div className="flex mb-4" >
-          <button //add buttons to draw , save and delete
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 mr-2  rounded"
-          onClick={toggleDrawingMode}>{drawingMode ? 'Stop Drawing' : 'Draw Shape'}
+        <div className="flex mb-4">
+          <button
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 mr-2 rounded"
+            onClick={toggleDrawingMode}
+          >
+            {drawingMode ? 'Stop Drawing' : 'Draw Shape'}
           </button>
-          <button 
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" 
-          onClick={handleSaveShape}
-          disabled={!geoJSON}>Save Shape
+          <button
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+            onClick={handleSaveShape}
+            disabled={!geoJSON}
+          >
+            Save Shape
           </button>
         </div>
         {areaValue && <p className="text-left text-gray-500 dark:text-gray-400">Area: {areaValue.toFixed(2)} Sqm</p>}
-        {perimeterValue && (// print area and perimeter
+        {perimeterValue && (
           <p className="text-left text-gray-500 dark:text-gray-400">Perimeter: {perimeterValue.toFixed(2)} Km</p>
         )}
       </div>
