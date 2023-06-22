@@ -39,7 +39,7 @@ const MapComponent = () => {
     }
   }, []);
 
-  const handleDrawCreate = (event) => {
+  const handleDrawCreate = (event) => { //setgeojson state is filed with geojson and then use truf library to calculate area & perimeter
     const geojson = event.features[0].geometry;
     setGeoJSON(geojson);
 
@@ -51,7 +51,7 @@ const MapComponent = () => {
     setPerimeterValue(polygonPerimeter);
   };
 
-  const toggleDrawingMode = () => {
+  const toggleDrawingMode = () => { //add event listner on drawingMode
     if (!drawingMode) {
       map.current.on('draw.create', handleDrawCreate);
       draw.current.changeMode('draw_polygon');
@@ -69,7 +69,7 @@ const MapComponent = () => {
     const value = event.target.value;
     setSearchValue(value);
 
-    if (searchTimeout) {
+    if (searchTimeout) { //use settimeout and cleartimeout for debouncing
       clearTimeout(searchTimeout);
     }
 
@@ -80,7 +80,7 @@ const MapComponent = () => {
     setSearchTimeout(timeout);
   };
 
-  const searchLocations = async (query) => {
+  const searchLocations = async (query) => { //search location and flyto the given location
     try {
       const response = await fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}`
@@ -96,13 +96,13 @@ const MapComponent = () => {
     }
   };
 
-  const addMarker = (coordinates) => {
+  const addMarker = (coordinates) => { //logic to add marker at coordinates
     if (map.current.getLayer('marker')) {
       map.current.removeLayer('marker');
       map.current.removeSource('marker');
     }
 
-    map.current.addSource('marker', {
+    map.current.addSource('marker', { //add data source to map
       type: 'geojson',
       data: {
         type: 'Feature',
@@ -113,7 +113,7 @@ const MapComponent = () => {
       },
     });
 
-    map.current.addLayer({
+    map.current.addLayer({ //define layer parameters
       id: 'marker',
       type: 'circle',
       source: 'marker',
@@ -124,19 +124,19 @@ const MapComponent = () => {
     });
   };
 
-  const handleSaveShape = () => {
+  const handleSaveShape = () => { //save the current shape or the polygon
     if (geoJSON) {
       localStorage.setItem('savedShape', JSON.stringify(geoJSON));
       alert('Shape saved!');
     }
   };
 
-  return (
+  return ( //render the map
     <div className="flex w-full h-full">
       <div className="flex-1" ref={mapContainer} style={{ height: '100vh' }} />
 
       <div className="flex flex-col p-14 bg-black border">
-        <input
+        <input //take input from user to search location
           type="text"
           className="w-full mb-5 h-10 px-8 py-5 rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Search"
@@ -144,7 +144,7 @@ const MapComponent = () => {
           onChange={handleSearchInputChange}
         />
         <div className="flex mb-4">
-          <button
+          <button //add button to draw,save and delete
             className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 mr-2 rounded"
             onClick={toggleDrawingMode}
           >
@@ -159,7 +159,7 @@ const MapComponent = () => {
           </button>
         </div>
         {areaValue && <p className="text-left text-gray-500 dark:text-gray-400">Area: {areaValue.toFixed(2)} Sqm</p>}
-        {perimeterValue && (
+        {perimeterValue && ( //display area and perimeter 
           <p className="text-left text-gray-500 dark:text-gray-400">Perimeter: {perimeterValue.toFixed(2)} Km</p>
         )}
       </div>
