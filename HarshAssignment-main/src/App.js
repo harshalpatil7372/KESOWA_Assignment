@@ -18,30 +18,57 @@ const MapComponent = () => {
   const [searchTimeout, setSearchTimeout] = useState(null);
 
   useEffect(() => {
-    map.current = new mapboxgl.Map({
+    map.current = new mapboxgl.Map({ //load map
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v11',
-      center: [-74.5, 40], // Set initial center coordinates here
-      zoom: 12, // Set initial zoom level here
+      center: [-74.5, 40],
+      zoom: 12,
     });
 
-    draw.current = new MapboxDraw();
-    map.current.addControl(draw.current);
+    map.current.on('style.load', () => {
+      draw.current = new MapboxDraw();
+      map.current.addControl(draw.current);
 
-    savedShape.current = JSON.parse(localStorage.getItem('savedShape'));
+      savedShape.current = JSON.parse(localStorage.getItem('savedShape'));  //loading the saved shape
+
+      if (savedShape.current) { //set the savedshape to geojson state
+        setGeoJSON(savedShape.current);
+        addPolygonLayer(savedShape.current);
+      }
+    });
 
     return () => map.current.remove();
   }, []);
 
-  useEffect(() => {
-    if (savedShape.current) {
-      setGeoJSON(savedShape.current);
+  const addPolygonLayer = (geojson) => { //add layer of saved shape in the map
+    if (map.current.getLayer('polygon')) {
+      map.current.removeLayer('polygon');
+      map.current.removeSource('polygon');
     }
-  }, []);
+
+    map.current.addSource('polygon', {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        geometry: geojson,
+      },
+    });
+
+    map.current.addLayer({
+      id: 'polygon',
+      type: 'fill',
+      source: 'polygon',
+      paint: {
+        'fill-color': '#0080ff',
+        'fill-opacity': 0.4,
+      },
+    });
+  };
 
   const handleDrawCreate = (event) => { //setgeojson state is filed with geojson and then use truf library to calculate area & perimeter
     const geojson = event.features[0].geometry;
     setGeoJSON(geojson);
+    addPolygonLayer(geojson);
 
     const turfPolygon = polygon(geojson.coordinates);
     const polygonArea = area(turfPolygon);
@@ -51,7 +78,7 @@ const MapComponent = () => {
     setPerimeterValue(polygonPerimeter);
   };
 
-  const toggleDrawingMode = () => { //add event listner on drawingMode
+  const toggleDrawingMode = () => {  //add event listner on drawingMode
     if (!drawingMode) {
       map.current.on('draw.create', handleDrawCreate);
       draw.current.changeMode('draw_polygon');
@@ -69,11 +96,11 @@ const MapComponent = () => {
     const value = event.target.value;
     setSearchValue(value);
 
-    if (searchTimeout) { //use settimeout and cleartimeout for debouncing
+    if (searchTimeout) {
       clearTimeout(searchTimeout);
     }
 
-    const timeout = setTimeout(() => {
+    const timeout = setTimeout(() => {  //use settimeout and cleartimeout for debouncing
       searchLocations(value);
     }, 500);
 
@@ -96,13 +123,13 @@ const MapComponent = () => {
     }
   };
 
-  const addMarker = (coordinates) => { //logic to add marker at coordinates
+  const addMarker = (coordinates) => {  //logic to add marker at coordinates
     if (map.current.getLayer('marker')) {
       map.current.removeLayer('marker');
       map.current.removeSource('marker');
     }
 
-    map.current.addSource('marker', { //add data source to map
+    map.current.addSource('marker', {  //add data source to map
       type: 'geojson',
       data: {
         type: 'Feature',
@@ -136,7 +163,7 @@ const MapComponent = () => {
       <div className="flex-1" ref={mapContainer} style={{ height: '100vh' }} />
 
       <div className="flex flex-col p-14 bg-black border">
-        <input //take input from user to search location
+        <input  //take input from user to search location
           type="text"
           className="w-full mb-5 h-10 px-8 py-5 rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Search"
@@ -159,7 +186,7 @@ const MapComponent = () => {
           </button>
         </div>
         {areaValue && <p className="text-left text-gray-500 dark:text-gray-400">Area: {areaValue.toFixed(2)} Sqm</p>}
-        {perimeterValue && ( //display area and perimeter 
+        {perimeterValue && (  //display area and perimeter 
           <p className="text-left text-gray-500 dark:text-gray-400">Perimeter: {perimeterValue.toFixed(2)} Km</p>
         )}
       </div>
